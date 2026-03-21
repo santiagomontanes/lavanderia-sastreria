@@ -1,8 +1,8 @@
-# LavaSuite Desktop · Fase 1
+# LavaSuite Desktop · MVP funcional por fases
 
-Aplicación de escritorio para lavandería y sastrería construida con Electron, React, TypeScript, Node.js y MySQL.
+Aplicación de escritorio para lavandería y sastrería construida con Electron, React, TypeScript, Node.js y MySQL, diseñada como single-tenant por instalación.
 
-## Arquitectura inicial
+## Estructura base
 
 ```text
 src/
@@ -14,20 +14,28 @@ src/
       migrations/
     modules/
       auth/
+      cash/
       clients/
+      deliveries/
+      invoices/
       orders/
+      payments/
       settings/
   main/
-    main.ts
-    preload.ts
     ipc/
     services/
+    main.ts
+    preload.ts
   renderer/
     modules/
       auth/
+      cash/
       clients/
       dashboard/
+      deliveries/
+      invoices/
       orders/
+      payments/
       shared/
     hooks/
     services/
@@ -40,24 +48,32 @@ src/
     types.ts
 ```
 
-## MVP funcional incluido en esta fase
+## Estado actual del MVP
 
-- configuración inicial de conexión MySQL por instalación
-- login funcional con auditoría en `audit_logs`
-- layout principal con sidebar, topbar y navegación
-- dashboard base
-- CRUD real de clientes
-- órdenes reales con múltiples ítems
-- cálculo de subtotal, descuento, total y saldo
-- detalle de orden
-- consecutivo automático usando `counters`
-- migración inicial con tablas esenciales de Fase 1
+### Fase 1 completada
+- configuración MySQL por instalación
+- login funcional con auditoría
+- layout comercial base
+- dashboard inicial
+- CRUD de clientes
+
+### Fase 2 iniciada
+- órdenes con múltiples ítems
+- detalle completo de orden
+- registrar pago
+- generar factura
+- caja activa
+- entregar orden
+
+## Flujo operativo disponible
+
+Dashboard → Nueva orden → Detalle de orden → Registrar pago → Generar factura → Entregar orden.
 
 ## Cómo correr
 
 1. Instala dependencias.
 2. Ejecuta `npm run dev`.
-3. Configura la conexión MySQL desde la primera pantalla.
+3. Configura la conexión MySQL en la primera pantalla.
 4. Ingresa con `admin / admin`.
 
 ## Scripts

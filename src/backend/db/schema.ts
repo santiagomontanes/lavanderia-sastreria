@@ -89,8 +89,22 @@ export interface OrderItemsTable {
   service_id: number | null;
   description: string;
   quantity: number;
+  color: string | null;
+  brand: string | null;
+  size_reference: string | null;
+  material: string | null;
+  received_condition: string | null;
+  work_detail: string | null;
+  stains: string | null;
+  damages: string | null;
+  missing_accessories: string | null;
+  customer_observations: string | null;
+  internal_observations: string | null;
   unit_price: number;
+  discount_amount: number;
+  surcharge_amount: number;
   subtotal: number;
+  total: number;
 }
 
 export interface OrderStatusesTable {
@@ -131,7 +145,7 @@ export interface PriceListsTable { id: Generated<number>; name: string; is_defau
 export interface ServicePricesTable { id: Generated<number>; price_list_id: number; service_id: number; garment_type_id: number | null; price: number; }
 export interface OrderStatusHistoryTable { id: Generated<number>; order_id: number; status_id: number; notes: string | null; changed_by: number | null; created_at: ColumnType<Date, never, never>; }
 export interface OrderLogsTable { id: Generated<number>; order_id: number; event_type: string; description: string; created_by: number | null; created_at: ColumnType<Date, never, never>; }
-export interface InvoicesTable { id: Generated<number>; invoice_number: string; order_id: number; client_id: number; subtotal: number; tax_total: number; total: number; created_at: ColumnType<Date, never, never>; }
+export interface InvoicesTable { id: Generated<number>; invoice_number: string; order_id: number; client_id: number; subtotal: number; tax_total: number; total: number; legal_text: string | null; whatsapp_sent_at: Date | null; created_at: ColumnType<Date, never, never>; }
 export interface InvoiceItemsSnapshotTable { id: Generated<number>; invoice_id: number; description: string; quantity: number; unit_price: number; subtotal: number; }
 export interface PaymentsTable { id: Generated<number>; order_id: number; invoice_id: number | null; payment_method_id: number; amount: number; reference: string | null; received_by: number | null; created_at: ColumnType<Date, never, never>; }
 export interface DiscountAuthorizationsTable { id: Generated<number>; order_id: number; authorized_by: number; amount: number; reason: string; created_at: ColumnType<Date, never, never>; }
@@ -144,7 +158,7 @@ export interface WarrantiesTable { id: Generated<number>; order_id: number; stat
 export interface WarrantyStatusLogsTable { id: Generated<number>; warranty_id: number; status_id: number; notes: string | null; created_by: number | null; created_at: ColumnType<Date, never, never>; }
 export interface AttachmentsTable { id: Generated<number>; entity_type: string; entity_id: number; file_name: string; file_path: string; mime_type: string | null; created_at: ColumnType<Date, never, never>; }
 export interface SystemDocumentsTable { id: Generated<number>; document_type: string; document_number: string; payload_json: string; created_at: ColumnType<Date, never, never>; }
-export interface DeliveryRecordsTable { id: Generated<number>; order_id: number; delivered_to: string; delivered_by: number | null; outstanding_balance: number; ticket_code: string; created_at: ColumnType<Date, never, never>; }
+export interface DeliveryRecordsTable { id: Generated<number>; order_id: number; delivered_to: string; delivered_by: number | null; receiver_document: string | null; receiver_phone: string | null; relationship_to_client: string | null; receiver_signature: string | null; outstanding_balance: number; ticket_code: string; created_at: ColumnType<Date, never, never>; }
 export interface NotificationTemplatesTable { id: Generated<number>; code: string; name: string; message_template: string; is_active: number; }
 export interface NotificationsWhatsappTable { id: Generated<number>; client_id: number | null; order_id: number | null; phone: string; message_text: string; status: string; created_at: ColumnType<Date, never, never>; }
 export interface PrintersTable { id: Generated<number>; name: string; printer_type: string; is_default: number; }

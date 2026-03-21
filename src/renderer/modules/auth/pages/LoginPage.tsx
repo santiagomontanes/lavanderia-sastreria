@@ -7,6 +7,7 @@ import { Button, Input } from '@renderer/ui/components';
 export const LoginPage = ({ onLogin }: { onLogin: (user: SessionUser) => void }) => {
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('admin');
+  const [rememberMe, setRememberMe] = useState(true);
   const mutation = useMutation({ mutationFn: api.login, onSuccess: onLogin });
 
   return (
@@ -17,8 +18,10 @@ export const LoginPage = ({ onLogin }: { onLogin: (user: SessionUser) => void })
         <p>Usa el usuario semilla <strong>admin</strong> con contraseña <strong>admin</strong>.</p>
         <label><span>Usuario</span><Input value={username} onChange={(e) => setUsername(e.target.value)} /></label>
         <label><span>Contraseña</span><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
-        <Button onClick={() => mutation.mutate({ username, password })} disabled={mutation.isPending}>Entrar</Button>
+        <label><span><input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} /> Recordar sesión</span></label>
+        <Button onClick={() => mutation.mutate({ username, password, rememberMe })} disabled={mutation.isPending}>Entrar</Button>
         {mutation.isError && <p className="error-text">{(mutation.error as Error).message}</p>}
+        <small>Versión 0.1.0</small>
       </div>
     </div>
   );

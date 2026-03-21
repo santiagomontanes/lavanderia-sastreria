@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import type { Database } from '../../db/schema.js';
 import type { LoginInput, SessionUser } from '../../../shared/types.js';
 
@@ -11,7 +11,7 @@ export const createAuthService = (db: Kysely<Database>) => ({
     const user = await db
       .selectFrom('users as u')
       .innerJoin('roles as r', 'r.id', 'u.role_id')
-      .select(['u.id', 'u.username', 'u.role_id', 'u.password_hash', 'u.full_name', 'r.name as role_name'])
+      .select(['u.id', 'u.username', 'u.role_id', 'u.password_hash', 'u.full_name', sql<string>`r.name`.as('role_name')])
       .where('u.username', '=', parsed.username)
       .where('u.is_active', '=', 1)
       .executeTakeFirst();

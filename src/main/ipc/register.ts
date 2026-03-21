@@ -1,10 +1,14 @@
-import { ipcMain } from 'electron';
+import { ipcMain, shell } from 'electron';
 import { databaseManager } from '../services/database-manager.js';
 import { createClientsService } from '../../backend/modules/clients/service.js';
 import { createOrdersService } from '../../backend/modules/orders/service.js';
 import { createSettingsService } from '../../backend/modules/settings/service.js';
 import { createAuthService } from '../../backend/modules/auth/service.js';
-import type { ClientInput, DbConnectionConfig, LoginInput, OrderInput } from '../../shared/types.js';
+import { createPaymentsService } from '../../backend/modules/payments/service.js';
+import { createInvoicesService } from '../../backend/modules/invoices/service.js';
+import { createCashService } from '../../backend/modules/cash/service.js';
+import { createDeliveriesService } from '../../backend/modules/deliveries/service.js';
+import type { ClientInput, DbConnectionConfig, DeliveryInput, ExternalLinkPayload, LoginInput, OrderInput, PaymentInput } from '../../shared/types.js';
 
 const wrap = <TArgs extends unknown[], TResult>(handler: (...args: TArgs) => Promise<TResult>) => async (_event: unknown, ...args: TArgs) => {
   try {
@@ -17,6 +21,10 @@ const wrap = <TArgs extends unknown[], TResult>(handler: (...args: TArgs) => Pro
 
 export const registerIpc = () => {
   ipcMain.handle('app:health', wrap(async () => databaseManager.healthCheck()));
+  ipcMain.handle('app:open-external', wrap(async ({ url }: ExternalLinkPayload) => {
+    await shell.openExternal(url);
+    return { opened: true };
+  }));
   ipcMain.handle('db:save-config', wrap(async (config: DbConnectionConfig) => {
     await databaseManager.saveConfig(config);
     await databaseManager.migrate();
@@ -32,5 +40,14 @@ export const registerIpc = () => {
   ipcMain.handle('orders:detail', wrap(async (id: number) => createOrdersService(await databaseManager.getDb()).detail(id)));
   ipcMain.handle('orders:create', wrap(async (input: OrderInput) => createOrdersService(await databaseManager.getDb()).create(input)));
   ipcMain.handle('orders:catalogs', wrap(async () => createOrdersService(await databaseManager.getDb()).catalogs()));
+  ipcMain.handle('payments:list', wrap(async (orderId?: number) => createPaymentsService(await databaseManager.getDb()).list(orderId)));
+  ipcMain.handle('payments:create', wrap(async (input: PaymentInput) => createPaymentsService(await databaseManager.getDb()).create(input)));
+  ipcMain.handle('invoices:list', wrap(async () => createInvoicesService(await databaseManager.getDb()).list()));
+  ipcMain.handle('invoices:detail', wrap(async (id: number) => createInvoicesService(await databaseManager.getDb()).detail(id)));
+  ipcMain.handle('invoices:create-from-order', wrap(async (orderId: number) => createInvoicesService(await databaseManager.getDb()).createFromOrder(orderId)));
+  ipcMain.handle('cash:open', wrap(async (openingAmount: number) => createCashService(await databaseManager.getDb()).open(openingAmount)));
+  ipcMain.handle('cash:summary', wrap(async () => createCashService(await databaseManager.getDb()).summary()));
+  ipcMain.handle('deliveries:list', wrap(async () => createDeliveriesService(await databaseManager.getDb()).list()));
+  ipcMain.handle('deliveries:create', wrap(async (input: DeliveryInput) => createDeliveriesService(await databaseManager.getDb()).create(input)));
   ipcMain.handle('dashboard:summary', wrap(async () => createOrdersService(await databaseManager.getDb()).dashboard()));
 };

@@ -4,7 +4,18 @@ import type { SessionUser } from '@shared/types';
 const menu = [
   { to: '/', label: 'Dashboard' },
   { to: '/clientes', label: 'Clientes' },
-  { to: '/ordenes', label: 'Órdenes' }
+  { to: '/ordenes', label: 'Órdenes' },
+  { to: '/entregas', label: 'Entregas' },
+  { to: '/facturacion', label: 'Facturación' },
+  { to: '/pagos', label: 'Pagos' },
+  { to: '/caja', label: 'Caja' },
+  { to: '/gastos', label: 'Gastos' },
+  { to: '/garantias', label: 'Garantías' },
+  { to: '/inventario', label: 'Inventario' },
+  { to: '/reportes', label: 'Reportes' },
+  { to: '/whatsapp', label: 'WhatsApp' },
+  { to: '/configuracion', label: 'Configuración' },
+  { to: '/auditoria', label: 'Auditoría' }
 ];
 
 export const AppShell = ({ user }: { user: SessionUser }) => (
@@ -13,22 +24,29 @@ export const AppShell = ({ user }: { user: SessionUser }) => (
       <div className="brand-panel">
         <strong>LavaSuite</strong>
         <span>Lavandería & Sastrería</span>
+        <small>Sucursal principal</small>
       </div>
       <nav className="sidebar-nav">
-        {menu.map((item) => (
-          <NavLink key={item.to} to={item.to} end={item.to === '/'} className="nav-link">{item.label}</NavLink>
-        ))}
+        {menu.map((item) => <NavLink key={item.to} to={item.to} end={item.to === '/'} className="nav-link">{item.label}</NavLink>)}
       </nav>
+      <div className="sidebar-footer">
+        <strong>{user.displayName}</strong>
+        <span>{user.roleName}</span>
+        <button className="button button-secondary">Cerrar sesión</button>
+      </div>
     </aside>
     <div className="content-shell">
       <header className="topbar">
         <div>
           <h1>Operación diaria</h1>
-          <p>Base profesional de escritorio para cada negocio.</p>
+          <p>Buscador global, accesos rápidos y estado comercial del escritorio.</p>
         </div>
-        <div className="topbar-user">
-          <strong>{user.displayName}</strong>
-          <span>{user.roleName}</span>
+        <div className="topbar-tools">
+          <input className="field compact-field" placeholder="Buscar cliente, orden o factura" />
+          <div className="topbar-user">
+            <strong>{new Date().toLocaleDateString('es-CO')}</strong>
+            <span>{user.displayName}</span>
+          </div>
         </div>
       </header>
       <main className="page-content"><Outlet /></main>
