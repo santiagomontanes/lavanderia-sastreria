@@ -2,9 +2,8 @@
   "name": "lavanderia-sastreria-desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Aplicación de escritorio para gestión de lavandería y sastrería",
+  "description": "Aplicaci\u00f3n de escritorio para gesti\u00f3n de lavander\u00eda y sastrer\u00eda",
   "main": "dist-electron/main/main.js",
-  "type": "module",
   "scripts": {
     "dev": "concurrently \"vite\" \"tsc -p tsconfig.electron.json --watch\" \"wait-on tcp:5173 dist-electron/main/main.js && electron .\"",
     "build": "vite build && tsc -p tsconfig.electron.json",
