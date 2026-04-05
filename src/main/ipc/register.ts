@@ -1,4 +1,4 @@
-import { ipcMain, shell } from 'electron';
+import { app, dialog, ipcMain, shell } from 'electron';
 import { databaseManager } from '../services/database-manager.js';
 import { createClientsService } from '../../backend/modules/clients/service.js';
 import { createOrdersService } from '../../backend/modules/orders/service.js';
@@ -14,7 +14,8 @@ import { createWarrantiesService } from '../../backend/modules/warranties/servic
 import { createReportsService } from '../../backend/modules/reports/service.js';
 import { printerService } from '../services/printer-service.js';
 import { backupService } from '../services/backup-service.js';
-import { licenseService } from '../services/license-service.js'
+import { licenseService } from '../services/license-service.js';
+
 import type {
   ClientInput,
   DbConnectionConfig,
@@ -44,18 +45,10 @@ export const registerIpc = () => {
   ipcMain.handle(
   'license:status',
   wrap(async () => {
-    const version = app.getVersion()
-    const result = await licenseService.status(version)
-
-    if (result.valid && result.warning && result.daysLeft) {
-      await dialog.showMessageBox({
-        type: 'warning',
-        message: `Tu licencia vence en ${result.daysLeft} día(s).`
-      })
-    }
-
-    return result
+    const version = app.getVersion();
+    return licenseService.status(version);
   })
+
 )
 
 ipcMain.handle(

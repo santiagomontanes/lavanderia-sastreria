@@ -11,6 +11,7 @@ import type {
 } from '../shared/types.js';
 
 contextBridge.exposeInMainWorld('desktopApi', {
+  
   getLicenseStatus: () => ipcRenderer.invoke('license:status'),
 activateLicense: (licenseKey: string) => ipcRenderer.invoke('license:activate', licenseKey),
 

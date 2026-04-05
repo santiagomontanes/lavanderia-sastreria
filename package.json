@@ -1,25 +1,25 @@
 {
   "name": "lavanderia-sastreria-desktop",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "commonjs",
   "description": "Aplicación de escritorio para gestión de lavandería y sastrería",
   "main": "dist-electron/main/main.js",
   "scripts": {
+    "dist:local": "npm run build && electron-builder --win nsis --publish never",
+    "dist:win": "npm run build && electron-builder --win nsis --publish always",
     "dev:renderer": "vite",
     "dev:electron": "tsc -p tsconfig.electron.json --watch",
     "dev:app": "wait-on http-get://localhost:5173 dist-electron/main/main.js && npx electron .",
     "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:electron\" \"npm run dev:app\"",
     "build": "vite build && tsc -p tsconfig.electron.json",
     "dist": "npm run build && electron-builder",
-    "dist:win": "npm run build && electron-builder --win nsis",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.electron.json",
     "lint": "eslint . --ext .ts,.tsx",
     "start": "electron .",
     "postinstall": "electron-rebuild"
   },
   "build": {
-    
     "appId": "com.sistetecni.lavanderia",
     "productName": "Lavanderia y Sastreria Sistetecni",
     "directories": {
@@ -38,6 +38,14 @@
       {
         "from": "google-oauth.json",
         "to": "google-oauth.json"
+      }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "santiagomontanes",
+        "repo": "lavanderia-sastreria",
+        "releaseType": "release"
       }
     ],
     "win": {

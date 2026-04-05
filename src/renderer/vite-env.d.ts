@@ -15,6 +15,8 @@ import type {
 declare global {
   interface Window {
     desktopApi: {
+      getLicenseStatus: () => Promise<unknown>;
+    activateLicense: (licenseKey: string) => Promise<unknown>;
       connectDriveBackup: () => Promise<unknown>;
       uploadBackupToDrive: () => Promise<unknown>;
       listBackups: () => Promise<unknown>;

@@ -1,8 +1,9 @@
-import { app, BrowserWindow } from 'electron';
-import path from 'node:path';
-import { registerIpc } from './ipc/register';
+import { app, BrowserWindow } from 'electron'
+import path from 'node:path'
+import { registerIpc } from './ipc/register'
+import { autoUpdater } from 'electron-updater'
 
-const isDev = !app.isPackaged;
+const isDev = !app.isPackaged
 
 const createWindow = async () => {
   const mainWindow = new BrowserWindow({
@@ -16,19 +17,22 @@ const createWindow = async () => {
       contextIsolation: true,
       nodeIntegration: false
     }
-  });
+  })
 
   try {
     if (isDev) {
-      await mainWindow.loadURL('http://localhost:5173');
-      mainWindow.webContents.openDevTools();
+      await mainWindow.loadURL('http://localhost:5173')
+      mainWindow.webContents.openDevTools()
     } else {
-      const indexPath = path.join(app.getAppPath(), 'dist', 'index.html');
-      await mainWindow.loadFile(indexPath);
-      mainWindow.webContents.openDevTools();
+      const indexPath = path.join(app.getAppPath(), 'dist', 'index.html')
+      await mainWindow.loadFile(indexPath)
+
+      // 👉 SOLO abre devtools si quieres debug en producción
+      // mainWindow.webContents.openDevTools()
     }
   } catch (error) {
-    console.error('Error cargando la ventana principal:', error);
+    console.error('Error cargando la ventana principal:', error)
+
     mainWindow.loadURL(
       `data:text/html;charset=utf-8,${encodeURIComponent(`
         <html>
@@ -38,23 +42,45 @@ const createWindow = async () => {
           </body>
         </html>
       `)}`
-    );
+    )
   }
-};
+}
 
 app.whenReady().then(async () => {
-  registerIpc();
-  await createWindow();
+  registerIpc()
+  await createWindow()
+
+  // 🚀 AUTO UPDATE SOLO EN PRODUCCIÓN
+  if (!isDev) {
+    try {
+      autoUpdater.checkForUpdatesAndNotify()
+
+      autoUpdater.on('update-available', () => {
+        console.log('🔄 Nueva actualización disponible')
+      })
+
+      autoUpdater.on('update-downloaded', () => {
+        console.log('✅ Update descargado, reiniciando...')
+        autoUpdater.quitAndInstall()
+      })
+
+      autoUpdater.on('error', (err) => {
+        console.error('❌ Error en autoUpdater:', err)
+      })
+    } catch (error) {
+      console.error('❌ Error iniciando autoUpdater:', error)
+    }
+  }
 
   app.on('activate', async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      await createWindow();
+      await createWindow()
     }
-  });
-});
+  })
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    app.quit();
+    app.quit()
   }
-});
+})
