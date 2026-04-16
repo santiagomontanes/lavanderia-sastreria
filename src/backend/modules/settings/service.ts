@@ -72,5 +72,75 @@ export const createSettingsService = (db: Kysely<Database>) => ({
       currencyCode: row.currency_code,
       invoicePolicies: row.invoice_policies ?? null
     };
+  },
+
+  async getOrderProtectionPassword(): Promise<string | null> {
+    const setting = await db
+      .selectFrom('app_settings')
+      .select(['setting_value'])
+      .where('setting_key', '=', 'order_protection_password')
+      .orderBy('id desc')
+      .executeTakeFirst();
+
+    return setting ? String(setting.setting_value ?? '').trim() : null;
+  },
+
+  async updateOrderProtectionPassword(input: {
+    currentPassword: string;
+    newPassword: string;
+    confirmPassword: string;
+  }): Promise<{ success: true }> {
+    const currentPassword = String(input.currentPassword ?? '').trim();
+    const newPassword = String(input.newPassword ?? '').trim();
+    const confirmPassword = String(input.confirmPassword ?? '').trim();
+
+    if (!currentPassword) {
+      throw new Error('Debes ingresar la contraseña actual.');
+    }
+
+    if (!newPassword || newPassword.length < 4) {
+      throw new Error('La nueva contraseña debe tener al menos 4 caracteres.');
+    }
+
+    if (newPassword !== confirmPassword) {
+      throw new Error('La confirmación de la nueva contraseña no coincide.');
+    }
+
+    const existing = await db
+      .selectFrom('app_settings')
+      .select(['id', 'setting_value'])
+      .where('setting_key', '=', 'order_protection_password')
+      .orderBy('id desc')
+      .executeTakeFirst();
+
+    if (!existing) {
+      await db
+        .insertInto('app_settings')
+        .values({
+          setting_key: 'order_protection_password',
+          setting_value: String(newPassword)
+        })
+        .execute();
+
+      return { success: true };
+    }
+
+    if (String(existing.setting_value ?? '').trim() !== currentPassword) {
+      throw new Error('La contraseña actual es incorrecta.');
+    }
+
+    if (currentPassword === newPassword) {
+      throw new Error('La nueva contraseña no puede ser igual a la actual.');
+    }
+
+    await db
+      .updateTable('app_settings')
+      .set({
+        setting_value: String(newPassword)
+      })
+      .where('id', '=', existing.id)
+      .execute();
+
+    return { success: true };
   }
 });

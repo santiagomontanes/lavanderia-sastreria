@@ -364,7 +364,7 @@ SELECT 'cash', 'Efectivo', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM payment_m
 INSERT INTO payment_methods (code, name, is_active)
 SELECT 'nequi', 'Nequi', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM payment_methods WHERE code = 'nequi');
 INSERT INTO payment_methods (code, name, is_active)
-SELECT 'biplat', 'Biplat', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM payment_methods WHERE code = 'biplat');
+SELECT 'daviplata', 'Daviplata', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM payment_methods WHERE code = 'daviplata');
 INSERT INTO payment_methods (code, name, is_active)
 SELECT 'transfer', 'Transferencia', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM payment_methods WHERE code = 'transfer');
 INSERT INTO payment_methods (code, name, is_active)

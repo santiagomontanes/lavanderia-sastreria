@@ -169,10 +169,42 @@ export interface ServicePricesTable { id: Generated<number>; price_list_id: numb
 export interface OrderStatusHistoryTable { id: Generated<number>; order_id: number; status_id: number; notes: string | null; changed_by: number | null; created_at: ColumnType<Date, never, never>; }
 export interface OrderLogsTable { id: Generated<number>; order_id: number; event_type: string; description: string; created_by: number | null; created_at: ColumnType<Date, never, never>; }
 export interface InvoicesTable { id: Generated<number>; invoice_number: string; order_id: number; client_id: number; subtotal: number; tax_total: number; total: number; legal_text: string | null; whatsapp_sent_at: Date | null; created_at: ColumnType<Date, never, never>; }
-export interface InvoiceItemsSnapshotTable { id: Generated<number>; invoice_id: number; description: string; quantity: number; unit_price: number; subtotal: number; }
+export interface InvoiceItemsSnapshotTable {
+  id: Generated<number>;
+  invoice_id: number;
+  garment_type_id: number | null;
+  service_id: number | null;
+  description: string;
+  quantity: number;
+  color: string | null;
+  brand: string | null;
+  size_reference: string | null;
+  material: string | null;
+  received_condition: string | null;
+  work_detail: string | null;
+  stains: string | null;
+  damages: string | null;
+  missing_accessories: string | null;
+  customer_observations: string | null;
+  internal_observations: string | null;
+  unit_price: number;
+  discount_amount: number;
+  surcharge_amount: number;
+  subtotal: number;
+  total: number;
+}
 export interface PaymentsTable { id: Generated<number>; order_id: number; invoice_id: number | null; payment_method_id: number; amount: number; reference: string | null; received_by: number | null; created_at: ColumnType<Date, never, never>; }
 export interface DiscountAuthorizationsTable { id: Generated<number>; order_id: number; authorized_by: number; amount: number; reason: string; created_at: ColumnType<Date, never, never>; }
-export interface CashSessionsTable { id: Generated<number>; branch_id: number | null; opened_by: number; opening_amount: number; status: string; opened_at: ColumnType<Date, never, never>; }
+export interface CashSessionsTable {
+  id: Generated<number>;
+  branch_id: number | null;
+  opened_by: number;
+  opened_by_name: string | null;
+  opened_by_phone: string | null;
+  opening_amount: number;
+  status: string;
+  opened_at: ColumnType<Date, never, never>;
+}
 export interface CashClosuresTable { id: Generated<number>; cash_session_id: number; closed_by: number; declared_amount: number; system_amount: number; difference_amount: number; closed_at: ColumnType<Date, never, never>; }
 export interface CashSessionTotalsTable { id: Generated<number>; cash_session_id: number; payment_method_id: number; system_amount: number; counted_amount: number | null; }
 export interface CashMovementsTable { id: Generated<number>; cash_session_id: number; movement_type: string; amount: number; notes: string | null; created_by: number | null; created_at: ColumnType<Date, never, never>; }

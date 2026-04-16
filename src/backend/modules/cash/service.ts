@@ -3,11 +3,12 @@ import type { Database } from '../../db/schema.js';
 import type {
   CashCloseInput,
   CashCloseResult,
+  CashOpenInput,
   CashSessionSummary
 } from '../../../shared/types.js';
 
 export const createCashService = (db: Kysely<Database>) => ({
-  async open(openingAmount?: number) {
+  async open(input: CashOpenInput) {
     const active = await db
       .selectFrom('cash_sessions')
       .selectAll()
@@ -17,9 +18,20 @@ export const createCashService = (db: Kysely<Database>) => ({
 
     if (active) return active;
 
-    let resolvedOpeningAmount = Number(openingAmount ?? 0);
+    const openedByName = String(input?.openedByName ?? '').trim();
+    const openedByPhone = String(input?.openedByPhone ?? '').trim();
 
-    if (!openingAmount || Number(openingAmount) <= 0) {
+    if (!openedByName) {
+      throw new Error('Debes ingresar el nombre de quien abre la caja.');
+    }
+
+    if (!openedByPhone) {
+      throw new Error('Debes ingresar el celular de quien abre la caja.');
+    }
+
+    let resolvedOpeningAmount = Number(input?.openingAmount ?? 0);
+
+    if (!input?.openingAmount || Number(input.openingAmount) <= 0) {
       const lastClosure = await db
         .selectFrom('cash_closures')
         .select(['declared_amount'])
@@ -33,6 +45,8 @@ export const createCashService = (db: Kysely<Database>) => ({
       .insertInto('cash_sessions')
       .values({
         opened_by: 1,
+        opened_by_name: openedByName,
+        opened_by_phone: openedByPhone,
         opening_amount: resolvedOpeningAmount,
         status: 'open'
       })
@@ -44,7 +58,11 @@ export const createCashService = (db: Kysely<Database>) => ({
         action: 'CASH_OPEN',
         entity_type: 'cash_session',
         entity_id: String(result.insertId),
-        details_json: JSON.stringify({ openingAmount: resolvedOpeningAmount })
+        details_json: JSON.stringify({
+          openingAmount: resolvedOpeningAmount,
+          openedByName,
+          openedByPhone
+        })
       })
       .execute();
 
@@ -68,6 +86,25 @@ export const createCashService = (db: Kysely<Database>) => ({
     }
 
     const declaredAmount = Number(input.declaredAmount ?? 0);
+    const closureMoment = new Date();
+
+    const company = await db
+      .selectFrom('company_settings')
+      .select([
+        'company_name',
+        'legal_name',
+        'nit',
+        'phone',
+        'address'
+      ])
+      .orderBy('id')
+      .executeTakeFirst();
+
+    const cashier = await db
+      .selectFrom('users')
+      .select(['full_name'])
+      .where('id', '=', Number(active.opened_by ?? 1))
+      .executeTakeFirst();
 
     const totalsByMethod = await db
       .selectFrom('payments as p')
@@ -84,6 +121,54 @@ export const createCashService = (db: Kysely<Database>) => ({
       (sum, item) => sum + Number(item.amount ?? 0),
       0
     );
+
+    const deliveredOrders = await db
+      .selectFrom('delivery_records as d')
+      .innerJoin('orders as o', 'o.id', 'd.order_id')
+      .leftJoin('payments as p', 'p.order_id', 'o.id')
+      .leftJoin('payment_methods as pm', 'pm.id', 'p.payment_method_id')
+      .select([
+        'o.id as order_id',
+        'o.order_number',
+        'd.delivered_to',
+        'o.total',
+        'o.paid_total',
+        sql<string>`COALESCE(GROUP_CONCAT(DISTINCT pm.name ORDER BY pm.name SEPARATOR ', '), 'Sin método')`.as(
+          'payment_methods'
+        ),
+        sql<Date>`MAX(d.created_at)`.as('delivered_at')
+      ])
+      .where('d.created_at', '>=', active.opened_at)
+      .where('d.created_at', '<=', closureMoment)
+      .groupBy([
+        'o.id',
+        'o.order_number',
+        'd.delivered_to',
+        'o.total',
+        'o.paid_total'
+      ])
+      .orderBy('delivered_at desc')
+      .execute();
+
+    const sessionPayments = await db
+      .selectFrom('payments as p')
+      .innerJoin('orders as o', 'o.id', 'p.order_id')
+      .innerJoin('clients as c', 'c.id', 'o.client_id')
+      .innerJoin('payment_methods as pm', 'pm.id', 'p.payment_method_id')
+      .select([
+        'p.id',
+        'o.id as order_id',
+        'o.order_number',
+        sql<string>`CONCAT(c.first_name, ' ', c.last_name)`.as('client_name'),
+        'p.amount',
+        'p.reference',
+        'p.created_at',
+        sql<string>`pm.name`.as('payment_method_name')
+      ])
+      .where('p.created_at', '>=', active.opened_at)
+      .where('p.created_at', '<=', closureMoment)
+      .orderBy('p.created_at desc')
+      .execute();
 
     const openingAmount = Number(active.opening_amount ?? 0);
     const systemAmount = openingAmount + paymentsTotal;
@@ -142,7 +227,9 @@ export const createCashService = (db: Kysely<Database>) => ({
             openingAmount,
             declaredAmount,
             systemAmount,
-            differenceAmount
+            differenceAmount,
+            openedByName: active.opened_by_name ?? null,
+            openedByPhone: active.opened_by_phone ?? null
           })
         })
         .execute();
@@ -156,7 +243,40 @@ export const createCashService = (db: Kysely<Database>) => ({
       openingAmount,
       declaredAmount,
       systemAmount,
-      differenceAmount
+      differenceAmount,
+      closedAt: closureMoment.toISOString(),
+      cashierName: cashier?.full_name ?? 'Administrador',
+      openedByName: active.opened_by_name ?? null,
+      openedByPhone: active.opened_by_phone ?? null,
+      companyName: company?.company_name ?? 'Mi Negocio',
+      companyNit: company?.nit ?? null,
+      companyPhone: company?.phone ?? null,
+      companyAddress: company?.address ?? null,
+      totalsByMethod: totalsByMethod.map((item) => ({
+        methodName: item.method_name,
+        amount: Number(item.amount ?? 0)
+      })),
+      deliveredOrders: deliveredOrders.map((item) => ({
+        orderId: Number(item.order_id),
+        orderNumber: item.order_number,
+        deliveredTo: item.delivered_to,
+        total: Number(item.total ?? 0),
+        paidTotal: Number(item.paid_total ?? 0),
+        paymentMethods: item.payment_methods,
+        deliveredAt: item.delivered_at
+          ? new Date(item.delivered_at).toISOString()
+          : null
+      })),
+      sessionPayments: sessionPayments.map((item) => ({
+        id: Number(item.id),
+        orderId: Number(item.order_id),
+        orderNumber: item.order_number,
+        clientName: item.client_name,
+        amount: Number(item.amount ?? 0),
+        paymentMethodName: item.payment_method_name,
+        reference: item.reference ?? null,
+        createdAt: new Date(item.created_at).toISOString()
+      }))
     };
   },
 
@@ -217,7 +337,9 @@ export const createCashService = (db: Kysely<Database>) => ({
         id: active.id,
         openingAmount: Number(active.opening_amount),
         openedAt: new Date(active.opened_at).toISOString(),
-        status: active.status
+        status: active.status,
+        openedByName: active.opened_by_name ?? null,
+        openedByPhone: active.opened_by_phone ?? null
       },
       suggestedOpeningAmount: Number(lastClosure?.declared_amount ?? 0),
       lastClosure: lastClosure

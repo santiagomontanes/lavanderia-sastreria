@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import type {
+  ApiResponse,
   ClientInput,
   DbConnectionConfig,
   DeliveryInput,
@@ -15,8 +16,20 @@ import type {
 declare global {
   interface Window {
     desktopApi: {
+      verifyPassword: (password: string) => Promise<ApiResponse<{ valid: boolean }>>;
+      getOrderProtectionPassword: () => Promise<unknown>;
+      updateOrderProtectionPassword: (input: {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}) => Promise<unknown>;
+
+      updateOrder: (orderId: number, input: OrderInput) => Promise<unknown>;
+      cancelOrder: (orderId: number) => Promise<unknown>;
+
       getLicenseStatus: () => Promise<unknown>;
-    activateLicense: (licenseKey: string) => Promise<unknown>;
+      activateLicense: (licenseKey: string) => Promise<unknown>;
+
       connectDriveBackup: () => Promise<unknown>;
       uploadBackupToDrive: () => Promise<unknown>;
       listBackups: () => Promise<unknown>;
@@ -31,9 +44,18 @@ declare global {
       listWarranties: () => Promise<unknown>;
       listWarrantyStatuses: () => Promise<unknown>;
       createWarranty: (input: { orderId: number; reason: string }) => Promise<unknown>;
-      updateWarrantyStatus: (id: number, input: { statusId: number; resolution: string | null }) => Promise<unknown>;
+      updateWarrantyStatus: (
+        id: number,
+        input: { statusId: number; resolution: string | null }
+      ) => Promise<unknown>;
+
       listExpenses: () => Promise<unknown>;
-      createExpense: (input: { categoryId: number; amount: number; description: string; expenseDate: string }) => Promise<unknown>;
+      createExpense: (input: {
+        categoryId: number;
+        amount: number;
+        description: string;
+        expenseDate: string;
+      }) => Promise<unknown>;
       listExpenseCategories: () => Promise<unknown>;
 
       listServices: (activeOnly?: boolean) => Promise<Service[]>;
@@ -65,7 +87,11 @@ declare global {
       getInvoiceDetail: (id: number) => Promise<unknown>;
       createInvoiceFromOrder: (orderId: number) => Promise<unknown>;
 
-      openCashSession: (openingAmount: number) => Promise<unknown>;
+      openCashSession: (input: {
+  openingAmount?: number;
+  openedByName: string;
+  openedByPhone: string;
+}) => Promise<unknown>;
       closeCashSession: (declaredAmount: number) => Promise<unknown>;
       getCashSummary: () => Promise<unknown>;
 

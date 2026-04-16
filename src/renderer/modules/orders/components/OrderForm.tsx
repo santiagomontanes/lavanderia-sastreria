@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
-import type { CatalogsPayload, Client, OrderInput } from '@shared/types';
+import type { CatalogsPayload, Client, OrderDetail, OrderInput } from '@shared/types';
 import { Button, FormSection, Input, Select, Textarea } from '@renderer/ui/components';
 import { currency } from '@renderer/utils/format';
 
@@ -10,6 +10,8 @@ const defaultValues: OrderInput = {
   dueDate: null,
   discountTotal: 0,
   paidAmount: 0,
+  initialPaymentMethodId: null,
+  initialPaymentReference: null,
   items: [
     {
       garmentTypeId: null,
@@ -39,11 +41,17 @@ const defaultValues: OrderInput = {
 export const OrderForm = ({
   clients,
   catalogs,
-  onSubmit
+  onSubmit,
+  initialValue,
+  hideInitialPaymentFields = false,
+  submitLabel = 'Guardar orden'
 }: {
   clients: Client[];
   catalogs: CatalogsPayload | undefined;
   onSubmit: (value: OrderInput) => void;
+  initialValue?: OrderDetail | null;
+  hideInitialPaymentFields?: boolean;
+  submitLabel?: string;
 }) => {
   const {
     register,
@@ -51,13 +59,67 @@ export const OrderForm = ({
     watch,
     setValue,
     handleSubmit,
+    reset,
     formState: { errors }
   } = useForm<OrderInput>({ defaultValues });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control,
     name: 'items'
   });
+
+  const [serviceSearch, setServiceSearch] = useState<Record<number, string>>({});
+
+  useEffect(() => {
+    if (!initialValue) {
+      reset(defaultValues);
+      setServiceSearch({});
+      return;
+    }
+
+    const mapped: OrderInput = {
+      clientId: initialValue.clientId,
+      notes: initialValue.notes || null,
+      dueDate: initialValue.dueDate ? initialValue.dueDate.slice(0, 10) : null,
+      discountTotal: Number(initialValue.discountTotal || 0),
+      paidAmount: 0,
+      initialPaymentMethodId: null,
+      initialPaymentReference: null,
+      items: initialValue.items.map((item) => ({
+        garmentTypeId: item.garmentTypeId,
+        serviceId: item.serviceId,
+        description: item.description,
+        quantity: Number(item.quantity),
+        color: null,
+        brand: null,
+        sizeReference: null,
+        material: null,
+        receivedCondition: null,
+        workDetail: null,
+        stains: null,
+        damages: null,
+        missingAccessories: null,
+        customerObservations: item.customerObservations,
+        internalObservations: null,
+        unitPrice: Number(item.unitPrice),
+        discountAmount: Number(item.discountAmount),
+        surchargeAmount: Number(item.surchargeAmount),
+        subtotal: Number(item.subtotal),
+        total: Number(item.total)
+      }))
+    };
+
+    reset(mapped);
+    replace(mapped.items);
+
+    const initialSearchState = mapped.items.reduce<Record<number, string>>((acc, item, index) => {
+      acc[index] = item.serviceId
+        ? catalogs?.services?.find((service) => service.id === item.serviceId)?.name ?? ''
+        : '';
+      return acc;
+    }, {});
+    setServiceSearch(initialSearchState);
+  }, [initialValue, reset, replace, catalogs]);
 
   const items = watch('items');
   const discountTotal = Number(watch('discountTotal') || 0);
@@ -88,27 +150,63 @@ export const OrderForm = ({
     setValue(`items.${index}.total`, itemTotal);
   };
 
+  const getFilteredServices = (index: number) => {
+    const term = String(serviceSearch[index] ?? '').trim().toLowerCase();
+
+    if (!term) {
+      return catalogs?.services ?? [];
+    }
+
+    return (catalogs?.services ?? []).filter((service) =>
+      String(service.name ?? '').toLowerCase().includes(term)
+    );
+  };
+
   return (
     <form
       className="stack-gap"
-      onSubmit={handleSubmit((values) =>
+      onSubmit={handleSubmit((values) => {
+        if (!hideInitialPaymentFields && values.paidAmount > 0 && !values.initialPaymentMethodId) {
+          alert('Debes seleccionar el método de pago del abono');
+          return;
+        }
+
         onSubmit({
           ...values,
           dueDate: values.dueDate || null,
           notes: values.notes || null,
           discountTotal: Number(values.discountTotal || 0),
           paidAmount: Number(values.paidAmount || 0),
+          initialPaymentMethodId:
+            !hideInitialPaymentFields && values.paidAmount > 0
+              ? Number(values.initialPaymentMethodId)
+              : null,
+          initialPaymentReference:
+            !hideInitialPaymentFields && values.paidAmount > 0
+              ? values.initialPaymentReference || null
+              : null,
           items: values.items.map((item) => ({
             ...item,
+            color: null,
+            brand: null,
+            sizeReference: null,
+            material: null,
+            receivedCondition: null,
+            workDetail: null,
+            stains: null,
+            damages: null,
+            missingAccessories: null,
+            internalObservations: null,
             quantity: Number(item.quantity),
             unitPrice: Number(item.unitPrice),
             discountAmount: Number(item.discountAmount),
             surchargeAmount: Number(item.surchargeAmount),
             subtotal: Number(item.subtotal),
-            total: Number(item.total)
+            total: Number(item.total),
+            customerObservations: item.customerObservations || null
           }))
-        })
-      )}
+        });
+      })}
     >
       <FormSection title="Encabezado de la orden">
         <div className="form-grid">
@@ -127,7 +225,9 @@ export const OrderForm = ({
                 </option>
               ))}
             </Select>
-            {errors.clientId && <small className="error-text">{errors.clientId.message}</small>}
+            {errors.clientId && (
+              <small className="error-text">{errors.clientId.message}</small>
+            )}
           </label>
 
           <label>
@@ -137,13 +237,45 @@ export const OrderForm = ({
 
           <label>
             <span>Descuento global</span>
-            <Input type="number" step="0.01" {...register('discountTotal', { valueAsNumber: true })} />
+            <Input
+              type="number"
+              step="0.01"
+              {...register('discountTotal', { valueAsNumber: true })}
+            />
           </label>
 
           <label>
             <span>Abono inicial</span>
-            <Input type="number" step="0.01" {...register('paidAmount', { valueAsNumber: true })} />
+            <Input
+              type="number"
+              step="0.01"
+              {...register('paidAmount', { valueAsNumber: true })}
+              disabled={hideInitialPaymentFields}
+            />
           </label>
+
+          {!hideInitialPaymentFields && paidAmount > 0 && (
+            <>
+              <label>
+                <span>Método de pago</span>
+                <Select
+                  {...register('initialPaymentMethodId', { valueAsNumber: true })}
+                >
+                  <option value="">Seleccionar</option>
+                  {catalogs?.paymentMethods.map((method) => (
+                    <option key={method.id} value={method.id}>
+                      {method.name}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+
+              <label>
+                <span>Referencia</span>
+                <Input {...register('initialPaymentReference')} />
+              </label>
+            </>
+          )}
 
           <label className="full-span">
             <span>Notas generales</span>
@@ -158,13 +290,28 @@ export const OrderForm = ({
             <div key={field.id} className="item-card">
               <div className="item-grid">
                 <label>
+                  <span>Buscar servicio</span>
+                  <Input
+                    placeholder="Escribe para filtrar servicios"
+                    value={serviceSearch[index] ?? ''}
+                    onChange={(e) =>
+                      setServiceSearch((prev) => ({
+                        ...prev,
+                        [index]: e.target.value
+                      }))
+                    }
+                  />
+                </label>
+
+                <label>
                   <span>Servicio</span>
                   <Select
                     {...register(`items.${index}.serviceId` as const, {
                       setValueAs: (value) => (value === '' ? null : Number(value))
                     })}
                     onChange={(e) => {
-                      const serviceId = e.target.value === '' ? null : Number(e.target.value);
+                      const serviceId =
+                        e.target.value === '' ? null : Number(e.target.value);
                       setValue(`items.${index}.serviceId`, serviceId);
 
                       const selectedService = catalogs?.services?.find(
@@ -172,19 +319,27 @@ export const OrderForm = ({
                       );
 
                       if (selectedService) {
-                        setValue(`items.${index}.unitPrice`, Number(selectedService.basePrice ?? 0));
+                        setValue(
+                          `items.${index}.unitPrice`,
+                          Number(selectedService.basePrice ?? 0)
+                        );
 
                         const currentDescription = watch(`items.${index}.description`);
                         if (!currentDescription || !currentDescription.trim()) {
                           setValue(`items.${index}.description`, selectedService.name);
                         }
+
+                        setServiceSearch((prev) => ({
+                          ...prev,
+                          [index]: selectedService.name
+                        }));
                       }
 
                       recalculateItem(index);
                     }}
                   >
                     <option value="">Selecciona un servicio</option>
-                    {catalogs?.services?.map((service) => (
+                    {getFilteredServices(index).map((service) => (
                       <option key={service.id} value={service.id}>
                         {service.name} - {currency(Number(service.basePrice ?? 0))}
                       </option>
@@ -249,59 +404,12 @@ export const OrderForm = ({
                   />
                 </label>
 
-                <label>
-                  <span>Color</span>
-                  <Input {...register(`items.${index}.color` as const)} />
-                </label>
-
-                <label>
-                  <span>Marca</span>
-                  <Input {...register(`items.${index}.brand` as const)} />
-                </label>
-
-                <label>
-                  <span>Talla / referencia</span>
-                  <Input {...register(`items.${index}.sizeReference` as const)} />
-                </label>
-
-                <label>
-                  <span>Material</span>
-                  <Input {...register(`items.${index}.material` as const)} />
-                </label>
-
                 <label className="full-span">
-                  <span>Condición al recibir</span>
-                  <Textarea {...register(`items.${index}.receivedCondition` as const)} />
-                </label>
-
-                <label className="full-span">
-                  <span>Detalle del trabajo</span>
-                  <Textarea {...register(`items.${index}.workDetail` as const)} />
-                </label>
-
-                <label>
-                  <span>Manchas</span>
-                  <Textarea {...register(`items.${index}.stains` as const)} />
-                </label>
-
-                <label>
-                  <span>Daños</span>
-                  <Textarea {...register(`items.${index}.damages` as const)} />
-                </label>
-
-                <label>
-                  <span>Accesorios faltantes</span>
-                  <Textarea {...register(`items.${index}.missingAccessories` as const)} />
-                </label>
-
-                <label>
-                  <span>Obs. cliente</span>
-                  <Textarea {...register(`items.${index}.customerObservations` as const)} />
-                </label>
-
-                <label>
-                  <span>Obs. internas</span>
-                  <Textarea {...register(`items.${index}.internalObservations` as const)} />
+                  <span>Observaciones</span>
+                  <Textarea
+                    {...register(`items.${index}.customerObservations` as const)}
+                    placeholder="Ej: prenda delicada, mancha visible, entregar con cuidado..."
+                  />
                 </label>
 
                 <label>
@@ -328,7 +436,11 @@ export const OrderForm = ({
               </div>
 
               {fields.length > 1 && (
-                <Button type="button" variant="danger" onClick={() => remove(index)}>
+                <Button
+                  type="button"
+                  variant="danger"
+                  onClick={() => remove(index)}
+                >
                   Quitar ítem
                 </Button>
               )}
@@ -337,7 +449,27 @@ export const OrderForm = ({
 
           <Button
             type="button"
-            variant="secondary"
+            variant="primary"
+            style={{
+              background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+              color: '#ffffff',
+              fontWeight: 600,
+              borderRadius: 12,
+              padding: '12px 18px',
+              boxShadow: '0 6px 18px rgba(37, 99, 235, 0.35)',
+              transition: 'all 0.2s ease',
+              border: 'none'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow =
+                '0 10px 24px rgba(37, 99, 235, 0.45)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow =
+                '0 6px 18px rgba(37, 99, 235, 0.35)';
+            }}
             onClick={() =>
               append({
                 garmentTypeId: null,
@@ -363,7 +495,7 @@ export const OrderForm = ({
               })
             }
           >
-            Agregar ítem
+            + Agregar ítem
           </Button>
         </div>
       </FormSection>
@@ -388,7 +520,7 @@ export const OrderForm = ({
       </div>
 
       <div className="form-actions">
-        <Button type="submit">Guardar orden</Button>
+        <Button type="submit">{submitLabel}</Button>
       </div>
     </form>
   );

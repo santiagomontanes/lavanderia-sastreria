@@ -42,6 +42,8 @@ const orderSchema = z.object({
   dueDate: z.string().nullable(),
   discountTotal: z.number().nonnegative(),
   paidAmount: z.number().nonnegative(),
+  initialPaymentMethodId: z.number().nullable().optional(),
+  initialPaymentReference: z.string().nullable().optional(),
   items: z.array(orderItemSchema).min(1)
 });
 
@@ -122,11 +124,15 @@ export const createOrdersService = (db: Kysely<Database>) => {
 
     const nextValue = Number(counter.current_value) + 1;
     const orderNumber = `${counter.prefix}-${String(nextValue).padStart(counter.padding, '0')}`;
+
     const subtotal = parsed.items.reduce((sum, item) => sum + item.subtotal, 0);
     const itemsTotal = parsed.items.reduce((sum, item) => sum + item.total, 0);
     const total = Math.max(0, itemsTotal - parsed.discountTotal);
     const paidTotal = Math.min(parsed.paidAmount, total);
-    const balanceDue = Math.max(0, total - paidTotal);
+
+    if (paidTotal > 0 && !parsed.initialPaymentMethodId) {
+      throw new Error('Debes seleccionar el método de pago del abono inicial.');
+    }
 
     let orderId = 0;
 
@@ -154,8 +160,8 @@ export const createOrdersService = (db: Kysely<Database>) => {
           subtotal,
           discount_total: parsed.discountTotal,
           total,
-          paid_total: paidTotal,
-          balance_due: balanceDue,
+          paid_total: 0,
+          balance_due: total,
           due_date: parsed.dueDate ? new Date(parsed.dueDate) : null
         })
         .executeTakeFirstOrThrow();
@@ -215,7 +221,7 @@ export const createOrdersService = (db: Kysely<Database>) => {
           action: 'ORDER_CREATE',
           entity_type: 'order',
           entity_id: String(orderId),
-          details_json: JSON.stringify({ orderNumber, total, balanceDue })
+          details_json: JSON.stringify({ orderNumber, total })
         })
         .execute();
     });
@@ -223,13 +229,202 @@ export const createOrdersService = (db: Kysely<Database>) => {
     if (paidTotal > 0) {
       await paymentsService.create({
         orderId,
-        paymentMethodId: 1,
+        paymentMethodId: parsed.initialPaymentMethodId as number,
         amount: paidTotal,
-        reference: 'Abono inicial'
+        reference: parsed.initialPaymentReference || 'Abono inicial'
       });
     }
 
     return detail(orderId);
+  };
+
+  const update = async (orderId: number, input: OrderInput): Promise<OrderDetail> => {
+    const parsed = orderSchema.parse(input);
+
+    const existingOrder = await db
+      .selectFrom('orders')
+      .selectAll()
+      .where('id', '=', orderId)
+      .executeTakeFirst();
+
+    if (!existingOrder) {
+      throw new Error('Orden no encontrada.');
+    }
+
+    const deliveriesCount = await db
+      .selectFrom('delivery_records')
+      .select((eb) => eb.fn.count<number>('id').as('count'))
+      .where('order_id', '=', orderId)
+      .executeTakeFirstOrThrow();
+
+    if (Number(deliveriesCount.count ?? 0) > 0) {
+      throw new Error('No puedes editar una orden que ya fue entregada.');
+    }
+
+    const subtotal = parsed.items.reduce((sum, item) => sum + item.subtotal, 0);
+    const itemsTotal = parsed.items.reduce((sum, item) => sum + item.total, 0);
+    const total = Math.max(0, itemsTotal - parsed.discountTotal);
+    const paidTotal = Number(existingOrder.paid_total ?? 0);
+
+    if (paidTotal > total) {
+      throw new Error('El nuevo total no puede ser menor que lo ya abonado.');
+    }
+
+    const balanceDue = Math.max(0, total - paidTotal);
+
+    await db.transaction().execute(async (trx) => {
+      await trx
+        .updateTable('orders')
+        .set({
+          client_id: parsed.clientId,
+          notes: parsed.notes,
+          subtotal,
+          discount_total: parsed.discountTotal,
+          total,
+          balance_due: balanceDue,
+          due_date: parsed.dueDate ? new Date(parsed.dueDate) : null
+        })
+        .where('id', '=', orderId)
+        .execute();
+
+      await trx
+        .deleteFrom('order_items')
+        .where('order_id', '=', orderId)
+        .execute();
+
+      await trx
+        .insertInto('order_items')
+        .values(
+          parsed.items.map((item) => ({
+            order_id: orderId,
+            garment_type_id: item.garmentTypeId,
+            service_id: item.serviceId,
+            description: item.description,
+            quantity: item.quantity,
+            color: item.color,
+            brand: item.brand,
+            size_reference: item.sizeReference,
+            material: item.material,
+            received_condition: item.receivedCondition,
+            work_detail: item.workDetail,
+            stains: item.stains,
+            damages: item.damages,
+            missing_accessories: item.missingAccessories,
+            customer_observations: item.customerObservations,
+            internal_observations: item.internalObservations,
+            unit_price: item.unitPrice,
+            discount_amount: item.discountAmount,
+            surcharge_amount: item.surchargeAmount,
+            subtotal: item.subtotal,
+            total: item.total
+          }))
+        )
+        .execute();
+
+      await trx
+        .insertInto('order_logs')
+        .values({
+          order_id: orderId,
+          event_type: 'UPDATE',
+          description: 'Orden editada en escritorio'
+        })
+        .execute();
+
+      await trx
+        .insertInto('audit_logs')
+        .values({
+          action: 'ORDER_UPDATE',
+          entity_type: 'order',
+          entity_id: String(orderId),
+          details_json: JSON.stringify({
+            clientId: parsed.clientId,
+            subtotal,
+            discountTotal: parsed.discountTotal,
+            total,
+            balanceDue
+          })
+        })
+        .execute();
+    });
+
+    return detail(orderId);
+  };
+
+  const cancel = async (orderId: number): Promise<{ success: true }> => {
+    const order = await db
+      .selectFrom('orders')
+      .selectAll()
+      .where('id', '=', orderId)
+      .executeTakeFirst();
+
+    if (!order) {
+      throw new Error('Orden no encontrada.');
+    }
+
+    const deliveriesCount = await db
+      .selectFrom('delivery_records')
+      .select((eb) => eb.fn.count<number>('id').as('count'))
+      .where('order_id', '=', orderId)
+      .executeTakeFirstOrThrow();
+
+    if (Number(deliveriesCount.count ?? 0) > 0) {
+      throw new Error('No puedes cancelar una orden ya entregada.');
+    }
+
+    const cancelStatus = await db
+      .selectFrom('order_statuses')
+      .selectAll()
+      .where('code', 'in', ['CANCELLED', 'CANCELED', 'CANCELADO'])
+      .orderBy('id')
+      .executeTakeFirst();
+
+    if (!cancelStatus) {
+      throw new Error('No existe un estado de cancelación configurado.');
+    }
+
+    await db.transaction().execute(async (trx) => {
+      await trx
+        .updateTable('orders')
+        .set({
+          status_id: cancelStatus.id
+        })
+        .where('id', '=', orderId)
+        .execute();
+
+      await trx
+        .insertInto('order_status_history')
+        .values({
+          order_id: orderId,
+          status_id: cancelStatus.id,
+          notes: 'Orden cancelada manualmente'
+        })
+        .execute();
+
+      await trx
+        .insertInto('order_logs')
+        .values({
+          order_id: orderId,
+          event_type: 'CANCEL',
+          description: 'Orden cancelada en escritorio'
+        })
+        .execute();
+
+      await trx
+        .insertInto('audit_logs')
+        .values({
+          action: 'ORDER_CANCEL',
+          entity_type: 'order',
+          entity_id: String(orderId),
+          details_json: JSON.stringify({
+            orderId,
+            statusId: cancelStatus.id,
+            statusName: cancelStatus.name
+          })
+        })
+        .execute();
+    });
+
+    return { success: true };
   };
 
   const updateStatus = async (
@@ -298,7 +493,6 @@ export const createOrdersService = (db: Kysely<Database>) => {
         })
         .execute();
 
-      // Si pasa a "En garantía", crea garantía automática si no existe
       if (statusId === 7) {
         const existing = await trx
           .selectFrom('warranties')
@@ -458,6 +652,8 @@ export const createOrdersService = (db: Kysely<Database>) => {
 
     detail,
     create,
+    update,
+    cancel,
     updateStatus
   };
 };

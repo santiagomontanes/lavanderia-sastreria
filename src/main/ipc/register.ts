@@ -41,23 +41,21 @@ const wrap =
   };
 
 export const registerIpc = () => {
+  ipcMain.handle(
+    'license:status',
+    wrap(async () => {
+      const version = app.getVersion();
+      return licenseService.status(version);
+    })
+  );
 
   ipcMain.handle(
-  'license:status',
-  wrap(async () => {
-    const version = app.getVersion();
-    return licenseService.status(version);
-  })
-
-)
-
-ipcMain.handle(
-  'license:activate',
-  wrap(async (licenseKey: string) => {
-    const version = app.getVersion()
-    return licenseService.activate(licenseKey, version)
-  })
-)
+    'license:activate',
+    wrap(async (licenseKey: string) => {
+      const version = app.getVersion();
+      return licenseService.activate(licenseKey, version);
+    })
+  );
 
   ipcMain.handle(
     'backup:connect-drive',
@@ -75,9 +73,27 @@ ipcMain.handle(
   );
 
   ipcMain.handle(
-  'settings:update-company',
-  wrap(async (input) =>
-    createSettingsService(await databaseManager.getDb()).updateCompanySettings(input)
+    'settings:update-company',
+    wrap(async (input) =>
+      createSettingsService(await databaseManager.getDb()).updateCompanySettings(input)
+    )
+  );
+
+  ipcMain.handle(
+    'settings:get-order-protection-password',
+    wrap(async () =>
+      createSettingsService(await databaseManager.getDb()).getOrderProtectionPassword()
+    )
+  );
+
+  ipcMain.handle(
+  'settings:update-order-protection-password',
+  wrap(async (input: {
+    currentPassword: string;
+    newPassword: string;
+    confirmPassword: string;
+  }) =>
+    createSettingsService(await databaseManager.getDb()).updateOrderProtectionPassword(input)
   )
 );
 
@@ -99,11 +115,11 @@ ipcMain.handle(
   );
 
   ipcMain.handle(
-  'services:list',
-  wrap(async (activeOnly?: boolean) => servicesManager.list(Boolean(activeOnly)))
-);
+    'services:list',
+    wrap(async (activeOnly?: boolean) => servicesManager.list(Boolean(activeOnly)))
+  );
 
-ipcMain.handle(
+  ipcMain.handle(
     'warranties:list',
     wrap(async () => createWarrantiesService(await databaseManager.getDb()).list())
   );
@@ -125,20 +141,20 @@ ipcMain.handle(
     )
   );
 
-ipcMain.handle(
-  'services:create',
-  wrap(async (input) => servicesManager.create(input))
-);
+  ipcMain.handle(
+    'services:create',
+    wrap(async (input) => servicesManager.create(input))
+  );
 
-ipcMain.handle(
-  'services:update',
-  wrap(async (id: number, input) => servicesManager.update(id, input))
-);
+  ipcMain.handle(
+    'services:update',
+    wrap(async (id: number, input) => servicesManager.update(id, input))
+  );
 
-ipcMain.handle(
-  'services:delete',
-  wrap(async (id: number) => servicesManager.remove(id))
-);
+  ipcMain.handle(
+    'services:delete',
+    wrap(async (id: number) => servicesManager.remove(id))
+  );
 
   ipcMain.handle('app:health', wrap(async () => databaseManager.healthCheck()));
 
@@ -157,6 +173,13 @@ ipcMain.handle(
       await databaseManager.migrate();
       return databaseManager.healthCheck();
     })
+  );
+
+  ipcMain.handle(
+    'auth:verify-password',
+    wrap(async (password: string) =>
+      createAuthService(await databaseManager.getDb()).verifyPassword(password)
+    )
   );
 
   ipcMain.handle(
@@ -231,6 +254,20 @@ ipcMain.handle(
   );
 
   ipcMain.handle(
+    'orders:update',
+    wrap(async (orderId: number, input: OrderInput) =>
+      createOrdersService(await databaseManager.getDb()).update(orderId, input)
+    )
+  );
+
+  ipcMain.handle(
+    'orders:cancel',
+    wrap(async (orderId: number) =>
+      createOrdersService(await databaseManager.getDb()).cancel(orderId)
+    )
+  );
+
+  ipcMain.handle(
     'payments:list',
     wrap(async (orderId?: number) =>
       createPaymentsService(await databaseManager.getDb()).list(orderId)
@@ -264,11 +301,15 @@ ipcMain.handle(
   );
 
   ipcMain.handle(
-    'cash:open',
-    wrap(async (openingAmount: number) =>
-      createCashService(await databaseManager.getDb()).open(openingAmount)
-    )
-  );
+  'cash:open',
+  wrap(async (input: {
+    openingAmount?: number;
+    openedByName: string;
+    openedByPhone: string;
+  }) =>
+    createCashService(await databaseManager.getDb()).open(input)
+  )
+);
 
   ipcMain.handle(
     'cash:close',
@@ -295,9 +336,9 @@ ipcMain.handle(
   ipcMain.handle(
     'expenses:categories',
     wrap(async () =>
-    createExpensesService(await databaseManager.getDb()).listCategories()
-  )
-);
+      createExpensesService(await databaseManager.getDb()).listCategories()
+    )
+  );
 
   ipcMain.handle(
     'deliveries:list',

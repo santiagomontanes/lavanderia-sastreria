@@ -16,21 +16,45 @@ const buildWhatsappMessage = (invoice: {
   balanceDue: number;
   ticketCode: string;
   companyName: string | null;
+  items: Array<any>;
 }) => {
+  const formatMoney = (value: number) =>
+    `$${Number(value ?? 0).toLocaleString('es-CO')}`;
+
+  const itemsText = invoice.items
+    .map((item, index) => {
+      const observations = String(item.customerObservations ?? '').trim();
+
+      return [
+        `${index + 1}. ${item.description}`,
+        `   Cant: ${item.quantity} | Unit: ${formatMoney(item.unitPrice)} | Total: ${formatMoney(
+          item.total
+        )}`,
+        observations ? `   Obs: ${observations}` : null
+      ]
+        .filter(Boolean)
+        .join('\n');
+    })
+    .join('\n\n');
+
   const lines = [
     `Hola ${invoice.clientName},`,
     '',
-    `${invoice.companyName ?? 'Nuestro negocio'} te comparte el resumen de tu factura:`,
+    `${invoice.companyName ?? 'Nuestro negocio'} te comparte tu factura:`,
     `Factura: ${invoice.invoiceNumber}`,
     invoice.dueDate
       ? `Fecha promesa: ${new Date(invoice.dueDate).toLocaleDateString('es-CO')}`
       : null,
-    `Total: $${invoice.total.toLocaleString('es-CO')}`,
-    `Abonado: $${invoice.paidTotal.toLocaleString('es-CO')}`,
-    `Saldo: $${invoice.balanceDue.toLocaleString('es-CO')}`,
+    '',
+    '*DETALLE DE PRENDAS*',
+    itemsText || 'Sin ítems registrados.',
+    '',
+    '*RESUMEN*',
+    `Total: ${formatMoney(invoice.total)}`,
+    `Abonado: ${formatMoney(invoice.paidTotal)}`,
+    `Saldo: ${formatMoney(invoice.balanceDue)}`,
     `Ticket: ${invoice.ticketCode}`,
     invoice.notes ? `Notas: ${invoice.notes}` : null,
-    invoice.legalText ? `Texto legal: ${invoice.legalText}` : null,
     invoice.companyPolicies ? `Políticas: ${invoice.companyPolicies}` : null
   ].filter(Boolean);
 
@@ -89,6 +113,7 @@ export const createInvoicesService = (db: Kysely<Database>) => {
         'o.notes as order_notes',
         'o.paid_total',
         'o.balance_due',
+        'o.order_number',
         sql<string>`c.first_name`.as('first_name'),
         sql<string>`c.last_name`.as('last_name'),
         sql<string | null>`c.phone`.as('client_phone')
@@ -100,19 +125,15 @@ export const createInvoicesService = (db: Kysely<Database>) => {
       mapInvoice({
         ...row,
         client_name: `${row.first_name} ${row.last_name}`,
-        ticket_code: buildTicketCode(
-          row.order_id
-            ? String(row.invoice_number).replace('FAC', 'ORD')
-            : row.invoice_number
-        ),
-        company_name: company?.company_name ?? null,  
+        ticket_code: buildTicketCode(row.order_number),
+        company_name: company?.company_name ?? null,
         company_phone: company?.phone ?? null,
         company_address: company?.address ?? null,
         company_nit: company?.nit ?? null,
         company_logo: company?.logo_base64 ?? null,
         company_policies: company?.invoice_policies ?? null
-        })
-        );
+      })
+    );
   };
 
   const detail = async (id: number): Promise<InvoiceDetail> => {
@@ -166,16 +187,32 @@ export const createInvoicesService = (db: Kysely<Database>) => {
       company_nit: company?.nit ?? null,
       company_logo: company?.logo_base64 ?? null,
       company_policies: company?.invoice_policies ?? null
-      });
+    });
 
     return {
       ...mapped,
       items: items.map((item) => ({
         id: item.id,
+        garmentTypeId: item.garment_type_id ?? null,
+        serviceId: item.service_id ?? null,
         description: item.description,
         quantity: Number(item.quantity),
+        color: null,
+        brand: null,
+        sizeReference: null,
+        material: null,
+        receivedCondition: null,
+        workDetail: null,
+        stains: null,
+        damages: null,
+        missingAccessories: null,
+        customerObservations: item.customer_observations ?? null,
+        internalObservations: null,
         unitPrice: Number(item.unit_price),
-        subtotal: Number(item.subtotal)
+        discountAmount: Number(item.discount_amount ?? 0),
+        surchargeAmount: Number(item.surcharge_amount ?? 0),
+        subtotal: Number(item.subtotal),
+        total: Number(item.total ?? item.subtotal)
       })),
       whatsappMessage: buildWhatsappMessage({
         invoiceNumber: mapped.invoiceNumber,
@@ -188,33 +225,30 @@ export const createInvoicesService = (db: Kysely<Database>) => {
         paidTotal: mapped.paidTotal,
         balanceDue: mapped.balanceDue,
         ticketCode: mapped.ticketCode,
-        companyName: mapped.companyName
+        companyName: mapped.companyName,
+        items: items.map((item) => ({
+          description: item.description,
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unit_price),
+          total: Number(item.total ?? item.subtotal),
+          customerObservations: item.customer_observations ?? null
+        }))
       })
     };
   };
 
   const createFromOrder = async (orderId: number): Promise<InvoiceDetail> => {
-    const existingInvoice = await db
-      .selectFrom('invoices')
-      .select(['id'])
-      .where('order_id', '=', orderId)
-      .orderBy('id desc')
-      .executeTakeFirst();
-
-    if (existingInvoice) {
-      return detail(existingInvoice.id);
-    }
-
     const order = await db
       .selectFrom('orders')
       .selectAll()
       .where('id', '=', orderId)
       .executeTakeFirstOrThrow();
 
-    const items = await db
+    const orderItems = await db
       .selectFrom('order_items')
       .selectAll()
       .where('order_id', '=', orderId)
+      .orderBy('id')
       .execute();
 
     const company = await db
@@ -222,6 +256,84 @@ export const createInvoicesService = (db: Kysely<Database>) => {
       .selectAll()
       .limit(1)
       .executeTakeFirst();
+
+    const existingInvoice = await db
+      .selectFrom('invoices')
+      .select(['id', 'invoice_number'])
+      .where('order_id', '=', orderId)
+      .orderBy('id desc')
+      .executeTakeFirst();
+
+    let invoiceId = 0;
+
+    if (existingInvoice) {
+      invoiceId = existingInvoice.id;
+
+      await db.transaction().execute(async (trx) => {
+        await trx
+          .updateTable('invoices')
+          .set({
+            client_id: order.client_id,
+            subtotal: order.subtotal,
+            tax_total: 0,
+            total: order.total,
+            legal_text: company?.company_name
+              ? `Documento generado por ${company.company_name}.`
+              : 'Documento generado por el sistema.'
+          })
+          .where('id', '=', invoiceId)
+          .execute();
+
+        await trx
+          .deleteFrom('invoice_items_snapshot')
+          .where('invoice_id', '=', invoiceId)
+          .execute();
+
+        await trx
+          .insertInto('invoice_items_snapshot')
+          .values(
+            orderItems.map((item) => ({
+              invoice_id: invoiceId,
+              garment_type_id: item.garment_type_id,
+              service_id: item.service_id,
+              description: item.description,
+              quantity: item.quantity,
+              color: item.color,
+              brand: item.brand,
+              size_reference: item.size_reference,
+              material: item.material,
+              received_condition: item.received_condition,
+              work_detail: item.work_detail,
+              stains: item.stains,
+              damages: item.damages,
+              missing_accessories: item.missing_accessories,
+              customer_observations: item.customer_observations,
+              internal_observations: item.internal_observations,
+              unit_price: item.unit_price,
+              discount_amount: item.discount_amount ?? 0,
+              surcharge_amount: item.surcharge_amount ?? 0,
+              subtotal: item.subtotal,
+              total: item.total ?? item.subtotal
+            }))
+          )
+          .execute();
+
+        await trx
+          .insertInto('audit_logs')
+          .values({
+            action: 'INVOICE_REFRESH',
+            entity_type: 'invoice',
+            entity_id: String(invoiceId),
+            details_json: JSON.stringify({
+              orderId,
+              invoiceNumber: existingInvoice.invoice_number
+            })
+          })
+          .execute();
+      });
+
+      return detail(invoiceId);
+    }
 
     const counter = await db
       .selectFrom('counters')
@@ -231,7 +343,6 @@ export const createInvoicesService = (db: Kysely<Database>) => {
 
     const nextValue = Number(counter.current_value) + 1;
     const invoiceNumber = `${counter.prefix}-${String(nextValue).padStart(counter.padding, '0')}`;
-    let invoiceId = 0;
 
     await db.transaction().execute(async (trx) => {
       await trx
@@ -260,12 +371,28 @@ export const createInvoicesService = (db: Kysely<Database>) => {
       await trx
         .insertInto('invoice_items_snapshot')
         .values(
-          items.map((item) => ({
+          orderItems.map((item) => ({
             invoice_id: invoiceId,
+            garment_type_id: item.garment_type_id,
+            service_id: item.service_id,
             description: item.description,
             quantity: item.quantity,
+            color: item.color,
+            brand: item.brand,
+            size_reference: item.size_reference,
+            material: item.material,
+            received_condition: item.received_condition,
+            work_detail: item.work_detail,
+            stains: item.stains,
+            damages: item.damages,
+            missing_accessories: item.missing_accessories,
+            customer_observations: item.customer_observations,
+            internal_observations: item.internal_observations,
             unit_price: item.unit_price,
-            subtotal: item.total ?? item.subtotal
+            discount_amount: item.discount_amount ?? 0,
+            surcharge_amount: item.surcharge_amount ?? 0,
+            subtotal: item.subtotal,
+            total: item.total ?? item.subtotal
           }))
         )
         .execute();

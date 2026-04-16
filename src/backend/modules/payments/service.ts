@@ -79,11 +79,10 @@ export const createPaymentsService = (db: Kysely<Database>) => {
 
       if (newBalance <= 0) {
         const readyStatus = await trx
-          .selectFrom('order_statuses')
-          .selectAll()
-          .where('code', 'in', ['READY_FOR_DELIVERY', 'READY', 'LISTO'])
-          .orderBy('id')
-          .executeTakeFirst();
+  .selectFrom('order_statuses')
+  .selectAll()
+  .where('code', '=', 'READY_FOR_DELIVERY')
+  .executeTakeFirst();
 
         if (readyStatus && order.status_id !== readyStatus.id) {
           await trx

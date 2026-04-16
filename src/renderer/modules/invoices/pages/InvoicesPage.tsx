@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@renderer/services/api';
 import { DataTable, PageHeader, Button, Input } from '@renderer/ui/components';
 import { currency, dateTime } from '@renderer/utils/format';
+import { normalizeScan } from '@renderer/utils/normalize';
 
 export const InvoicesPage = () => {
   const queryClient = useQueryClient();
@@ -33,18 +34,20 @@ export const InvoicesPage = () => {
   });
 
   const filteredInvoices = useMemo(() => {
-    const search = filter.trim().toLowerCase();
+    const search = normalizeScan(filter);
     if (!search) return data;
 
     return data.filter((invoice) => {
-      const invoiceNumber = invoice.invoiceNumber?.toLowerCase() ?? '';
-      const orderId = String(invoice.orderId ?? '').toLowerCase();
-      const clientName = invoice.clientName?.toLowerCase() ?? '';
+      const invoiceNumber = normalizeScan(invoice.invoiceNumber ?? '');
+      const orderId = normalizeScan(String(invoice.orderId ?? ''));
+      const clientName = normalizeScan(invoice.clientName ?? '');
+      const ticketCode = normalizeScan(invoice.ticketCode ?? '');
 
       return (
         invoiceNumber.includes(search) ||
         orderId.includes(search) ||
-        clientName.includes(search)
+        clientName.includes(search) ||
+        ticketCode.includes(search)
       );
     });
   }, [data, filter]);
@@ -59,9 +62,9 @@ export const InvoicesPage = () => {
       <div className="card-panel stack-gap">
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <Input
-            placeholder="Filtrar por factura, orden o cliente"
+            placeholder="Filtrar por factura, orden, cliente o ticket"
             value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+            onChange={(e) => setFilter(normalizeScan(e.target.value))}
           />
         </div>
 

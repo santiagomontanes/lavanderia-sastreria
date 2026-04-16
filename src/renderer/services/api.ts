@@ -34,6 +34,7 @@ import type {
   BackupRecord,
   BackupUploadResult,
   ConnectDriveResult,
+  CashOpenInput,
 } from '@shared/types';
 
 async function unwrap<T>(promise: Promise<unknown>): Promise<T> {
@@ -45,7 +46,7 @@ async function unwrap<T>(promise: Promise<unknown>): Promise<T> {
 export const api = {
   licenseStatus: () => unwrap<any>(window.desktopApi.getLicenseStatus()),
   activateLicense: (licenseKey: string) =>
-  unwrap<any>(window.desktopApi.activateLicense(licenseKey)),
+    unwrap<any>(window.desktopApi.activateLicense(licenseKey)),
 
   connectDriveBackup: () =>
     unwrap<ConnectDriveResult>(window.desktopApi.connectDriveBackup()),
@@ -61,7 +62,19 @@ export const api = {
     unwrap<OpenDrawerResult>(window.desktopApi.openCashDrawer(printerName)),
 
   updateCompanySettings: (input: any) =>
-  unwrap(window.desktopApi.updateCompanySettings(input)),
+    unwrap(window.desktopApi.updateCompanySettings(input)),
+
+  getOrderProtectionPassword: () =>
+    unwrap<string | null>(window.desktopApi.getOrderProtectionPassword()),
+
+  updateOrderProtectionPassword: (input: {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}) =>
+  unwrap<{ success: true }>(
+    window.desktopApi.updateOrderProtectionPassword(input)
+  ),
 
   reportsSummary: (from?: string, to?: string) =>
     unwrap<ReportsSummary>(window.desktopApi.getReportsSummary(from, to)),
@@ -73,9 +86,10 @@ export const api = {
     unwrap<WarrantyRecord>(window.desktopApi.updateWarrantyStatus(id, input)),
 
   listExpenseCategories: () =>
-  unwrap<{ id: number; name: string }[]>(
-    window.desktopApi.listExpenseCategories()
-  ),
+    unwrap<{ id: number; name: string }[]>(
+      window.desktopApi.listExpenseCategories()
+    ),
+
   listExpenses: () => unwrap<Expense[]>(window.desktopApi.listExpenses()),
   createExpense: (input: ExpenseInput) => unwrap<Expense>(window.desktopApi.createExpense(input)),
   health: () => unwrap<HealthStatus>(window.desktopApi.health()),
@@ -83,6 +97,9 @@ export const api = {
   saveDbConfig: (config: DbConnectionConfig) => unwrap<HealthStatus>(window.desktopApi.saveDbConfig(config)),
   login: (input: LoginInput) => unwrap<SessionUser>(window.desktopApi.login(input)),
   companySettings: () => unwrap<CompanySettings | null>(window.desktopApi.getCompanySettings()),
+
+  verifyPassword: (password: string) =>
+    unwrap<{ valid: boolean }>(window.desktopApi.verifyPassword(password)),
 
   listClients: () => unwrap<Client[]>(window.desktopApi.listClients()),
   createClient: (input: ClientInput) => unwrap<Client>(window.desktopApi.createClient(input)),
@@ -93,6 +110,10 @@ export const api = {
   orderDetail: (id: number) => unwrap<OrderDetail>(window.desktopApi.getOrderDetail(id)),
   orderCatalogs: () => unwrap<CatalogsPayload>(window.desktopApi.getOrderCatalogs()),
   createOrder: (input: OrderInput) => unwrap<OrderDetail>(window.desktopApi.createOrder(input)),
+  updateOrder: (orderId: number, input: OrderInput) =>
+    unwrap<OrderDetail>(window.desktopApi.updateOrder(orderId, input)),
+  cancelOrder: (orderId: number) =>
+    unwrap<{ success: boolean }>(window.desktopApi.cancelOrder(orderId)),
   updateOrderStatus: (orderId: number, statusId: number) =>
     unwrap<{ success: boolean }>(window.desktopApi.updateOrderStatus(orderId, statusId)),
 
@@ -103,9 +124,10 @@ export const api = {
   invoiceDetail: (id: number) => unwrap<InvoiceDetail>(window.desktopApi.getInvoiceDetail(id)),
   createInvoiceFromOrder: (orderId: number) => unwrap<InvoiceDetail>(window.desktopApi.createInvoiceFromOrder(orderId)),
 
-  openCashSession: (openingAmount: number) => unwrap(window.desktopApi.openCashSession(openingAmount)),
+  openCashSession: (input: CashOpenInput) =>
+  unwrap(window.desktopApi.openCashSession(input)),
   closeCashSession: (declaredAmount: number) =>
-  unwrap<CashCloseResult>(window.desktopApi.closeCashSession(declaredAmount)),
+    unwrap<CashCloseResult>(window.desktopApi.closeCashSession(declaredAmount)),
   cashSummary: () => unwrap<CashSessionSummary>(window.desktopApi.getCashSummary()),
 
   listDeliveries: () => unwrap<DeliveryRecord[]>(window.desktopApi.listDeliveries()),

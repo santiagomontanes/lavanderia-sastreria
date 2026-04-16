@@ -131,6 +131,8 @@ export type OrderInput = {
   dueDate: string | null;
   discountTotal: number;
   paidAmount: number;
+  initialPaymentMethodId?: number | null;
+  initialPaymentReference?: string | null;
   items: OrderItemInput[];
 };
 
@@ -220,10 +222,26 @@ export type OpenDrawerResult = {
 export type InvoiceDetail = Invoice & {
   items: Array<{
     id: number;
+    garmentTypeId: number | null;
+    serviceId: number | null;
     description: string;
     quantity: number;
+    color: string | null;
+    brand: string | null;
+    sizeReference: string | null;
+    material: string | null;
+    receivedCondition: string | null;
+    workDetail: string | null;
+    stains: string | null;
+    damages: string | null;
+    missingAccessories: string | null;
+    customerObservations: string | null;
+    internalObservations: string | null;
     unitPrice: number;
+    discountAmount: number;
+    surchargeAmount: number;
     subtotal: number;
+    total: number;
   }>;
   whatsappMessage: string;
 };
@@ -255,6 +273,12 @@ export type CashCloseInput = {
   declaredAmount: number;
 };
 
+export type CashOpenInput = {
+  openingAmount?: number;
+  openedByName: string;
+  openedByPhone: string;
+};
+
 export type CashCloseResult = {
   closureId: number;
   cashSessionId: number;
@@ -262,6 +286,37 @@ export type CashCloseResult = {
   declaredAmount: number;
   systemAmount: number;
   differenceAmount: number;
+  closedAt?: string;
+  cashierName?: string;
+  openedByName?: string | null;
+  openedByPhone?: string | null;
+  companyName?: string;
+  companyNit?: string | null;
+  companyPhone?: string | null;
+  companyAddress?: string | null;
+  totalsByMethod?: Array<{
+    methodName: string;
+    amount: number;
+  }>;
+  deliveredOrders?: Array<{
+    orderId: number;
+    orderNumber: string;
+    deliveredTo: string;
+    total: number;
+    paidTotal: number;
+    paymentMethods: string;
+    deliveredAt: string | null;
+  }>;
+  sessionPayments?: Array<{
+    id: number;
+    orderId: number;
+    orderNumber: string;
+    clientName: string;
+    amount: number;
+    paymentMethodName: string;
+    reference: string | null;
+    createdAt: string;
+  }>;
 };
 
 export type CashSessionSummary = {
@@ -270,6 +325,8 @@ export type CashSessionSummary = {
     openingAmount: number;
     openedAt: string;
     status: string;
+    openedByName?: string | null;
+    openedByPhone?: string | null;
   } | null;
   suggestedOpeningAmount: number;
   lastClosure: {
@@ -395,5 +452,20 @@ export type ReportsSummary = {
     count: number;
     total: number;
   }>;
+};
+export type CreateOrderInput = {
+  clientId: number;
+  dueDate?: string | null;
+  notes?: string | null;
+  items: {
+    description: string;
+    quantity: number;
+    unitPrice: number;
+  }[];
+
+  // 👇 NUEVO
+  paidTotal?: number;
+  initialPaymentMethodId?: number | null;
+  initialPaymentReference?: string | null;
 };
 

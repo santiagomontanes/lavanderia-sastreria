@@ -1,34 +1,42 @@
 import { useEffect, useRef } from 'react';
 import JsBarcode from 'jsbarcode';
 
-type BarcodeProps = {
+type Props = {
   value: string;
-  height?: number;
   width?: number;
+  height?: number;
   displayValue?: boolean;
 };
 
 export const Barcode = ({
   value,
-  height = 60,
   width = 2,
-  displayValue = true
-}: BarcodeProps) => {
+  height = 60,
+  displayValue = false
+}: Props) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
 
   useEffect(() => {
-    if (!svgRef.current || !value?.trim()) return;
+    if (!svgRef.current) return;
 
-    JsBarcode(svgRef.current, value, {
+    const normalized = String(value ?? '')
+      .replace(/[–—−]/g, '-')
+      .replace(/'/g, '-')
+      .trim()
+      .toUpperCase();
+
+    // CODE39 suele ser más tolerante para textos alfanuméricos con guiones
+    JsBarcode(svgRef.current, normalized, {
       format: 'CODE128',
-      lineColor: '#111827',
-      background: '#ffffff',
+      lineColor: '#000',
+      background: '#fff',
       width,
       height,
+      margin: 0,
       displayValue,
-      margin: 0
+      fontOptions: 'bold'
     });
-  }, [value, height, width, displayValue]);
+  }, [value, width, height, displayValue]);
 
   return <svg ref={svgRef} />;
 };

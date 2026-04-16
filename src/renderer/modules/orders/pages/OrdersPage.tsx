@@ -4,6 +4,63 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '@renderer/services/api';
 import { DataTable, Input, PageHeader, StatusChip } from '@renderer/ui/components';
 import { currency, dateTime } from '@renderer/utils/format';
+import { normalizeScan } from '@renderer/utils/normalize';
+
+const normalizePhone = (raw?: string | null) => {
+  const digits = String(raw ?? '').replace(/\D/g, '');
+
+  if (!digits) return '';
+
+  if (digits.startsWith('57') && digits.length >= 12) {
+    return digits;
+  }
+
+  if (digits.length === 10) {
+    return `57${digits}`;
+  }
+
+  if (digits.length > 10 && !digits.startsWith('57')) {
+    return `57${digits.slice(-10)}`;
+  }
+
+  return digits;
+};
+
+const buildReadyMessage = ({
+  clientName,
+  orderNumber,
+  total,
+  paidTotal,
+  balanceDue
+}: {
+  clientName: string;
+  orderNumber: string;
+  total: number;
+  paidTotal: number;
+  balanceDue: number;
+}) => {
+  return `Hola ${clientName} 👋
+
+Tu orden *${orderNumber}* ya está *lista para entregar*.
+
+💰 Total: ${new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    maximumFractionDigits: 0
+  }).format(total)}
+💵 Abonado: ${new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    maximumFractionDigits: 0
+  }).format(paidTotal)}
+🧾 Saldo: ${new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    maximumFractionDigits: 0
+  }).format(balanceDue)}
+
+Puedes pasar por ella cuando desees.`;
+};
 
 export const OrdersPage = () => {
   const navigate = useNavigate();
@@ -13,7 +70,7 @@ export const OrdersPage = () => {
   const [search, setSearch] = useState('');
 
   const normalizeScannedCode = (value: string) => {
-    const text = value.trim().toUpperCase();
+    const text = normalizeScan(value);
 
     if (text.startsWith('TK-')) {
       return text.slice(3);
@@ -25,6 +82,11 @@ export const OrdersPage = () => {
   const { data: orders = [] } = useQuery({
     queryKey: ['orders'],
     queryFn: api.listOrders
+  });
+
+  const { data: clients = [] } = useQuery({
+    queryKey: ['clients'],
+    queryFn: api.listClients
   });
 
   const { data: catalogs } = useQuery({
@@ -39,6 +101,7 @@ export const OrdersPage = () => {
     },
     onSuccess: async ({ orderId, statusId }) => {
       const selectedStatus = catalogs?.statuses?.find((status) => status.id === statusId);
+      const selectedOrder = orders.find((order) => order.id === orderId);
 
       if (selectedStatus) {
         queryClient.setQueryData(['orders'], (old: any) => {
@@ -58,6 +121,35 @@ export const OrdersPage = () => {
       }
 
       await queryClient.invalidateQueries({ queryKey: ['orders'] });
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+
+      if (!selectedStatus || !selectedOrder) return;
+
+      const statusCode = String(selectedStatus.code ?? '').trim().toUpperCase();
+
+      const shouldSendReadyMessage =
+        statusCode === 'READY' ||
+        statusCode === 'READY_FOR_DELIVERY' ||
+        statusCode === 'LISTO';
+
+      if (!shouldSendReadyMessage) return;
+
+      const client = clients.find((item) => item.id === selectedOrder.clientId);
+      const phone = normalizePhone(client?.phone);
+
+      if (!phone) return;
+
+      const url = `https://wa.me/${phone}?text=${encodeURIComponent(
+        buildReadyMessage({
+          clientName: selectedOrder.clientName,
+          orderNumber: selectedOrder.orderNumber,
+          total: selectedOrder.total,
+          paidTotal: selectedOrder.paidTotal,
+          balanceDue: selectedOrder.balanceDue
+        })
+      )}`;
+
+      await api.openExternal(url);
     }
   });
 
@@ -72,9 +164,9 @@ export const OrdersPage = () => {
 
       if (!normalizedSearch) return true;
 
-      const orderNumber = String(order.orderNumber ?? '').toUpperCase();
-      const clientName = String(order.clientName ?? '').toUpperCase();
-      const statusName = String(order.statusName ?? '').toUpperCase();
+      const orderNumber = normalizeScan(String(order.orderNumber ?? ''));
+      const clientName = normalizeScan(String(order.clientName ?? ''));
+      const statusName = normalizeScan(String(order.statusName ?? ''));
 
       return (
         orderNumber.includes(normalizedSearch) ||
@@ -85,14 +177,15 @@ export const OrdersPage = () => {
   }, [orders, statusFilter, normalizedSearch]);
 
   const handleSearchChange = (value: string) => {
-    setSearch(value);
+    const cleanedInput = normalizeScan(value);
+    setSearch(cleanedInput);
 
-    const normalized = normalizeScannedCode(value);
+    const normalized = normalizeScannedCode(cleanedInput);
 
     if (!normalized) return;
 
     const exactOrder = orders.find(
-      (order) => String(order.orderNumber ?? '').toUpperCase() === normalized
+      (order) => normalizeScan(String(order.orderNumber ?? '')) === normalized
     );
 
     if (exactOrder) {

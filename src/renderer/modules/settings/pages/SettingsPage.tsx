@@ -16,11 +16,18 @@ export const SettingsPage = () => {
     queryFn: api.listBackups
   });
 
+ 
+
   const [form, setForm] = useState<any>({});
+  const [currentAdminPassword, setCurrentAdminPassword] = useState('');
+const [newAdminPassword, setNewAdminPassword] = useState('');
+const [confirmAdminPassword, setConfirmAdminPassword] = useState('');
 
   useEffect(() => {
     if (data) setForm(data);
   }, [data]);
+
+
 
   const connectDriveMutation = useMutation({
     mutationFn: api.connectDriveBackup
@@ -32,6 +39,17 @@ export const SettingsPage = () => {
       await queryClient.invalidateQueries({ queryKey: ['backups'] });
     }
   });
+
+  const updateAdminPasswordMutation = useMutation({
+  mutationFn: api.updateOrderProtectionPassword,
+  onSuccess: async () => {
+    await queryClient.invalidateQueries({ queryKey: ['order-protection-password'] });
+
+    setCurrentAdminPassword('');
+    setNewAdminPassword('');
+    setConfirmAdminPassword('');
+  }
+});
 
   const handleSave = async () => {
     await api.updateCompanySettings(form);
@@ -56,7 +74,7 @@ export const SettingsPage = () => {
     <section className="stack-gap">
       <PageHeader
         title="Configuración"
-        subtitle="Datos del negocio, políticas y backups."
+        subtitle="Datos del negocio, políticas, seguridad y backups."
       />
 
       <div className="card-panel stack-gap">
@@ -157,6 +175,69 @@ export const SettingsPage = () => {
           </Button>
         </div>
       </div>
+
+      <div className="card-panel stack-gap">
+  <h3>Seguridad de órdenes</h3>
+
+  <label>
+    <span>Contraseña administrativa actual</span>
+    <Input
+      type="password"
+      value={currentAdminPassword}
+      onChange={(e) => setCurrentAdminPassword(e.target.value)}
+      placeholder="Ingresa la contraseña actual"
+    />
+  </label>
+
+  <label>
+    <span>Nueva contraseña administrativa</span>
+    <Input
+      type="password"
+      value={newAdminPassword}
+      onChange={(e) => setNewAdminPassword(e.target.value)}
+      placeholder="Ingresa la nueva contraseña"
+    />
+  </label>
+
+  <label>
+    <span>Confirmar nueva contraseña</span>
+    <Input
+      type="password"
+      value={confirmAdminPassword}
+      onChange={(e) => setConfirmAdminPassword(e.target.value)}
+      placeholder="Repite la nueva contraseña"
+    />
+  </label>
+
+  <div className="form-actions">
+    <Button
+      onClick={() =>
+        updateAdminPasswordMutation.mutate({
+          currentPassword: currentAdminPassword,
+          newPassword: newAdminPassword,
+          confirmPassword: confirmAdminPassword
+        })
+      }
+      disabled={updateAdminPasswordMutation.isPending}
+    >
+      {updateAdminPasswordMutation.isPending
+        ? 'Guardando...'
+        : 'Actualizar contraseña'}
+    </Button>
+  </div>
+
+  {updateAdminPasswordMutation.isError && (
+    <p className="error-text">
+      {(updateAdminPasswordMutation.error as Error).message}
+    </p>
+  )}
+
+  {updateAdminPasswordMutation.isSuccess && (
+    <p style={{ color: 'green', margin: 0 }}>
+      Contraseña administrativa actualizada correctamente.
+    </p>
+  )}
+</div>
 
       <div className="card-panel stack-gap">
         <h3>Backups en Google Drive</h3>

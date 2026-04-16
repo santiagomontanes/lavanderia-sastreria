@@ -11,11 +11,23 @@ import type {
 } from '../shared/types.js';
 
 contextBridge.exposeInMainWorld('desktopApi', {
-  
-  getLicenseStatus: () => ipcRenderer.invoke('license:status'),
-activateLicense: (licenseKey: string) => ipcRenderer.invoke('license:activate', licenseKey),
+  verifyPassword: (password: string) =>
+    ipcRenderer.invoke('auth:verify-password', password),
 
-connectDriveBackup: () => ipcRenderer.invoke('backup:connect-drive'),
+  getOrderProtectionPassword: () =>
+    ipcRenderer.invoke('settings:get-order-protection-password'),
+
+  updateOrderProtectionPassword: (input: {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}) =>
+  ipcRenderer.invoke('settings:update-order-protection-password', input),
+
+  getLicenseStatus: () => ipcRenderer.invoke('license:status'),
+  activateLicense: (licenseKey: string) => ipcRenderer.invoke('license:activate', licenseKey),
+
+  connectDriveBackup: () => ipcRenderer.invoke('backup:connect-drive'),
   uploadBackupToDrive: () => ipcRenderer.invoke('backup:upload-drive'),
   listBackups: () => ipcRenderer.invoke('backup:list'),
 
@@ -23,10 +35,9 @@ connectDriveBackup: () => ipcRenderer.invoke('backup:connect-drive'),
   openCashDrawer: (printerName?: string) => ipcRenderer.invoke('printer:open-drawer', printerName),
 
   updateCompanySettings: (input: any) =>
-  ipcRenderer.invoke('settings:update-company', input),
+    ipcRenderer.invoke('settings:update-company', input),
   getReportsSummary: (from?: string, to?: string) =>
     ipcRenderer.invoke('reports:summary', from, to),
-
 
   listWarranties: () => ipcRenderer.invoke('warranties:list'),
   listWarrantyStatuses: () => ipcRenderer.invoke('warranties:statuses'),
@@ -53,6 +64,12 @@ connectDriveBackup: () => ipcRenderer.invoke('backup:connect-drive'),
   updateOrderStatus: (orderId: number, statusId: number) =>
     ipcRenderer.invoke('orders:update-status', orderId, statusId),
 
+  updateOrder: (orderId: number, input: OrderInput) =>
+    ipcRenderer.invoke('orders:update', orderId, input),
+
+  cancelOrder: (orderId: number) =>
+    ipcRenderer.invoke('orders:cancel', orderId),
+
   listPayments: (orderId?: number) => ipcRenderer.invoke('payments:list', orderId),
   createPayment: (input: PaymentInput) => ipcRenderer.invoke('payments:create', input),
 
@@ -60,7 +77,11 @@ connectDriveBackup: () => ipcRenderer.invoke('backup:connect-drive'),
   getInvoiceDetail: (id: number) => ipcRenderer.invoke('invoices:detail', id),
   createInvoiceFromOrder: (orderId: number) => ipcRenderer.invoke('invoices:create-from-order', orderId),
 
-  openCashSession: (openingAmount: number) => ipcRenderer.invoke('cash:open', openingAmount),
+  openCashSession: (input: {
+  openingAmount?: number;
+  openedByName: string;
+  openedByPhone: string;
+}) => ipcRenderer.invoke('cash:open', input),
   closeCashSession: (declaredAmount: number) => ipcRenderer.invoke('cash:close', declaredAmount),
   getCashSummary: () => ipcRenderer.invoke('cash:summary'),
 
